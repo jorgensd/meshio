@@ -16,7 +16,6 @@ _writer_map = {}
 def register(name: str, extensions: List[str], reader, writer_map):
     for ext in extensions:
         extension_to_filetype[ext] = name
-
     if reader is not None:
         reader_map[name] = reader
     _writer_map.update(writer_map)
@@ -35,11 +34,12 @@ def _filetype_from_path(path: pathlib.Path):
     return out
 
 
-def read(filename, file_format: Optional[str] = None):
+def read(filename, file_format: Optional[str] = None, grid_name: Optional[str] = None):
     """Reads an unstructured mesh with added data.
 
     :param filenames: The files/PathLikes to read from.
     :type filenames: str
+    :type grid_name: Name of grid
 
     :returns mesh{2,3}d: The mesh data.
     """
@@ -65,8 +65,7 @@ def read(filename, file_format: Optional[str] = None):
 
     if file_format not in reader_map:
         raise ReadError(msg)
-
-    return reader_map[file_format](filename)
+    return reader_map[file_format](filename, grid_name)
 
 
 def write_points_cells(

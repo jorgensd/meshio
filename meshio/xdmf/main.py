@@ -5,7 +5,7 @@ http://www.xdmf.org/index.php/XDMF_Model_and_Format
 import os
 import pathlib
 from io import BytesIO
-from xml.etree import ElementTree as ET
+from lxml import etree as ET
 
 import numpy as np
 
@@ -25,31 +25,32 @@ from .common import (
 )
 
 
-def read(filename):
-    return XdmfReader(filename).read()
+def read(filename,  grid_name=None):
+    return XdmfReader(filename).read(grid_name)
 
 
 class XdmfReader:
     def __init__(self, filename):
         self.filename = filename
 
-    def read(self):
+    def read(self, grid_name):
         parser = ET.XMLParser()
-        tree = ET.parse(self.filename, parser)
-        root = tree.getroot()
 
+        tree = ET.parse(self.filename)
+        root = tree.getroot()
+        tree.xinclude()
         if root.tag != "Xdmf":
             raise ReadError()
 
         version = root.get("Version")
 
         if version.split(".")[0] == "2":
-            return self.read_xdmf2(root)
+            return self.read_xdmf2(root, grid_name)
 
         if version.split(".")[0] != "3":
             raise ReadError(f"Unknown XDMF version {version}.")
 
-        return self.read_xdmf3(root)
+        return self.read_xdmf3(root, grid_name)
 
     def _read_data_item(self, data_item, root=None):
         import h5py
@@ -143,6 +144,7 @@ class XdmfReader:
             raise ReadError()
 
         grids = list(domain)
+        
         if len(grids) != 1:
             raise ReadError("XDMF reader: Only supports one grid right now.")
         grid = grids[0]
@@ -223,7 +225,7 @@ class XdmfReader:
             field_data=field_data,
         )
 
-    def read_xdmf3(self, root):  # noqa: C901
+    def read_xdmf3(self, root, grid_name=None):  # noqa: C901
         domains = list(root)
         if len(domains) != 1:
             raise ReadError()
@@ -232,9 +234,12 @@ class XdmfReader:
             raise ReadError()
 
         grids = list(domain)
-        if len(grids) != 1:
-            raise ReadError("XDMF reader: Only supports one grid right now.")
-        grid = grids[0]
+        grid_names = np.asarray([grid.attrib["Name"] for grid in grids])
+        grid_index = np.flatnonzero(grid_names == grid_name)
+        if len(grid_index) != 1:
+            raise ReadError(f"XDMF reader: Could note read grid with name: {grid_name}.")
+
+        grid = grids[grid_index[0]]
         if grid.tag != "Grid":
             raise ReadError()
 
